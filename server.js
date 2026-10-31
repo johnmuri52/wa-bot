@@ -33,7 +33,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const BOT_LOGO_URL = 'https://i.imgur.com/8QO4z8m.png'; 
 
-// SUPABASE CONFIG (Set these in Render!)
+// SUPABASE CONFIG
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_KEY = process.env.SUPABASE_KEY || '';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -46,7 +46,7 @@ const messageStore = new Map();
 const aiMemory = new Map();
 
 // ============================================================
-// SUPABASE AUTH STATE (Replaces useMultiFileAuthState)
+// SUPABASE AUTH STATE (Saves WhatsApp Login)
 // ============================================================
 async function useSupabaseAuthState(userId) {
   const writeData = async (data, key) => {
@@ -109,8 +109,23 @@ async function useSupabaseAuthState(userId) {
 // ============================================================
 // HELPERS
 // ============================================================
-async function loadUsers() { try { return JSON.parse(await readFile(USERS_FILE, 'utf8')); } catch { return {}; } }
-async function saveUsers(u) { await writeFile(USERS_FILE, JSON.stringify(u, null, 2)); }
+async function loadUsers() { 
+  try { 
+    return JSON.parse(await readFile(USERS_FILE, 'utf8')); 
+  } catch (e) { 
+    // If file doesn't exist, create it with an empty object
+    await writeFile(USERS_FILE, '{}'); 
+    return {}; 
+  } 
+}
+
+async function saveUsers(u) { 
+  try {
+    await writeFile(USERS_FILE, JSON.stringify(u, null, 2)); 
+  } catch (e) {
+    console.error('Failed to save user:', e);
+  }
+}
 
 function formatDuration(ms) {
   const s = Math.floor(ms / 1000);
@@ -265,29 +280,72 @@ async function handleCommand(sock, msg, jid, cmd, args) {
 }
 
 // ============================================================
-// EXPRESS APP
+// EXPRESS APP & AUTH
 // ============================================================
 const app = express();
 app.use(express.json());
-app.use(session({ secret: 'secret', resave: false, saveUninitialized: false }));
+app.use(express.urlencoded({ extended: true }));
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'atomic-secret-' + Math.random(),
+  resave: false,
+  saveUninitialized: false,
+  proxy: true, // Crucial for Render
+  cookie: { 
+    secure: false, // Must be false for Render's HTTP proxy
+    maxAge: 30 * 24 * 60 * 60 * 1000 
+  }
+}));
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.post('/api/register', async (req, res) => {
-  const { username, password } = req.body;
-  const users = await loadUsers();
-  if (users[username]) return res.status(400).json({ error: 'Username taken' });
-  users[username] = { password: await bcrypt.hash(password, 10) };
-  await saveUsers(users);
-  req.session.userId = username;
-  res.json({ success: true });
+  try {
+    const { username, password } = req.body;
+    if (!username || !password || username.length < 3 || password.length < 6) {
+      return res.status(400).json({ error: 'Username min 3, password min 6' });
+    }
+    const users = await loadUsers();
+    if (users[username]) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+    const hash = await bcrypt.hash(password, 10);
+    users[username] = { password: hash, createdAt: Date.now() };
+    await saveUsers(users);
+    
+    req.session.userId = username;
+    res.json({ success: true, user: { username } });
+  } catch (err) {
+    console.error('Register error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 app.post('/api/login', async (req, res) => {
-  const { username, password } = req.body;
-  const users = await loadUsers();
-  if (!users[username] || !await bcrypt.compare(password, users[username].password)) return res.status(401).json({ error: 'Invalid' });
-  req.session.userId = username;
-  res.json({ success: true });
+  try {
+    const { username, password } = req.body;
+    const users = await loadUsers();
+    const user = users[username];
+    
+    if (!user || !await bcrypt.compare(password, user.password)) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    req.session.userId = username;
+    res.json({ success: true, user: { username } });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/logout', (req, res) => {
+  req.session.destroy(() => res.json({ success: true }));
+});
+
+app.get('/api/me', (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ error: 'Not logged in' });
+  res.json({ user: { username: req.session.userId } });
 });
 
 app.get('/api/session', (req, res) => {
@@ -308,19 +366,26 @@ app.post('/api/session/create', async (req, res) => {
       entry.pairingCode = code; entry.status = 'AWAITING_PAIR';
       res.json({ success: true, code });
     } else res.json({ success: true, alreadyRegistered: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { 
+    console.error('Session create error:', err);
+    res.status(500).json({ error: err.message }); 
+  }
 });
 
 // ============================================================
 // STARTUP
 // ============================================================
 async function restoreSessions() {
-  const users = await loadUsers();
-  for (const userId of Object.keys(users)) {
-    console.log('Checking Supabase for session: ' + userId);
-    await createBotSession(userId, null);
+  try {
+    const users = await loadUsers();
+    for (const userId of Object.keys(users)) {
+      console.log('Checking Supabase for session: ' + userId);
+      await createBotSession(userId, null);
+    }
+  } catch (e) {
+    console.error('Restore error:', e);
   }
 }
 
-app.listen(PORT, () => console.log('🌐 http://localhost:' + PORT));
+app.listen(PORT, '0.0.0.0', () => console.log('🌐 http://localhost:' + PORT));
 restoreSessions().catch(console.error);
