@@ -33,7 +33,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const BOT_LOGO_URL = 'https://i.imgur.com/8QO4z8m.png'; 
 
-// SUPABASE CONFIG (Must be set in Render Environment Variables)
+// SUPABASE CONFIG
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_KEY = process.env.SUPABASE_KEY || '';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -46,7 +46,7 @@ const messageStore = new Map();
 const aiMemory = new Map();
 
 // ============================================================
-// SUPABASE AUTH STATE (Saves WhatsApp Login to the Cloud)
+// SUPABASE AUTH STATE (Saves WhatsApp Login)
 // ============================================================
 async function useSupabaseAuthState(userId) {
   const writeData = async (data, key) => {
@@ -360,17 +360,35 @@ app.get('/api/session', (req, res) => {
 app.post('/api/session/create', async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ error: 'Not logged in' });
   const { phone } = req.body;
+  
+  if (!phone || !/^\d{8,15}$/.test(phone)) {
+    return res.status(400).json({ error: 'Invalid phone number format. Use digits only (e.g., 254712345678).' });
+  }
+
   try {
+    // Force close any existing socket to free memory
+    if (activeSockets.has(req.session.userId)) {
+      const old = activeSockets.get(req.session.userId);
+      try { old.sock?.end(); } catch (e) {}
+      activeSockets.delete(req.session.userId);
+    }
+
     const entry = await createBotSession(req.session.userId, phone);
-    await new Promise(r => setTimeout(r, 2500));
+    
+    // Wait longer for Baileys to initialize to prevent memory spike
+    await new Promise(r => setTimeout(r, 4000)); 
+
     if (!entry.sock.authState.creds.registered) {
       const code = await entry.sock.requestPairingCode(phone);
-      entry.pairingCode = code; entry.status = 'AWAITING_PAIR';
+      entry.pairingCode = code; 
+      entry.status = 'AWAITING_PAIR';
       res.json({ success: true, code });
-    } else res.json({ success: true, alreadyRegistered: true });
+    } else {
+      res.json({ success: true, alreadyRegistered: true });
+    }
   } catch (err) { 
     console.error('Session create error:', err);
-    res.status(500).json({ error: err.message }); 
+    res.status(500).json({ error: 'Server ran out of memory. Please try again.' }); 
   }
 });
 
