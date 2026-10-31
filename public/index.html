@@ -3,71 +3,102 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HACKERXKESCHEME - Login</title>
+<title>HACKERXKESCHEME - Dashboard</title>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
 <div class="landing" id="authScreen">
-  <div class="nav">
-    <div class="logo">⚡ HACKERXKESCHEME</div>
-  </div>
-
-  <div class="hero">
-    <h1>Welcome Back.</h1>
-    <p>Log in to manage your WhatsApp bot.</p>
-  </div>
-
+  <div class="nav"><div class="logo">⚡ HACKERXKESCHEME</div></div>
+  <div class="hero"><h1>Welcome Back.</h1><p>Log in to manage your WhatsApp bot.</p></div>
   <div class="session-card" style="margin:0 auto 60px; max-width: 400px;">
-    <div class="form-group">
-      <label>Username</label>
-      <input type="text" id="username" placeholder="Enter username" autocomplete="username">
-    </div>
-    <div class="form-group">
-      <label>Password</label>
-      <input type="password" id="password" placeholder="Enter password" autocomplete="current-password">
-    </div>
+    <div class="form-group"><label>Username</label><input type="text" id="username" placeholder="Enter username"></div>
+    <div class="form-group"><label>Password</label><input type="password" id="password" placeholder="Enter password"></div>
     <button class="btn btn-primary" style="width:100%" id="loginBtn" onclick="login()">Login</button>
     <button class="btn btn-ghost" style="width:100%; margin-top:10px;" id="registerBtn" onclick="register()">Create Account</button>
     <div id="error" class="error-msg"></div>
   </div>
 </div>
 
-<div class="landing" id="pairScreen" style="display:none;">
-  <div class="nav">
-    <div class="logo">⚡ HACKERXKESCHEME</div>
-    <div class="nav-actions">
-      <button class="btn btn-ghost" onclick="logout()">Logout</button>
-    </div>
-  </div>
+<div class="dashboard" id="dashScreen" style="display:none;">
+  <aside class="sidebar">
+    <div class="logo">⚡ Atomic</div>
+    <button class="nav-item active" data-page="session">🤖 My Bot</button>
+    <button class="nav-item" data-page="features">✨ Features</button>
+    <button class="nav-item" data-page="support">💬 Support</button>
+    <button class="nav-item" data-page="settings">⚙️ Settings</button>
+    <button class="nav-item" onclick="logout()" style="margin-top:24px; color: var(--red);">🚪 Logout</button>
+  </aside>
 
-  <div class="hero">
-    <h1>Connect WhatsApp</h1>
-    <p>Enter your number to link your bot.</p>
-  </div>
-
-  <div class="session-card" style="margin:0 auto 60px">
-    <div class="form-group">
-      <label>WhatsApp Number (digits only, with country code)</label>
-      <input type="tel" id="phone" placeholder="254712345678" inputmode="numeric" autocomplete="off">
+  <main class="main-content">
+    <div id="page-session">
+      <h1 class="page-title">My Bot Session</h1>
+      <p class="page-sub">Pair your WhatsApp number to activate the bot.</p>
+      <div class="session-card" id="sessionCard"><div>Loading...</div></div>
     </div>
-    <button class="btn btn-primary" style="width:100%" id="connectBtn" onclick="startPairing()">Generate Pairing Code</button>
-    <div id="result" style="margin-top:20px"></div>
-  </div>
+
+    <div id="page-features" style="display:none">
+      <h1 class="page-title">Features</h1>
+      <div class="features" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap: 15px;">
+        <div class="feature-card" style="padding:20px; background:var(--card); border:1px solid var(--border); border-radius:10px;"><h3>👁️ Auto-View Status</h3><p>Auto views & saves statuses.</p></div>
+        <div class="feature-card" style="padding:20px; background:var(--card); border:1px solid var(--border); border-radius:10px;"><h3>📥 Downloads</h3><p>.song .video .dl .ytmp3 .ytmp4</p></div>
+        <div class="feature-card" style="padding:20px; background:var(--card); border:1px solid var(--border); border-radius:10px;"><h3>👥 Group Admin</h3><p>.tagall .kick .promote .warn .top</p></div>
+        <div class="feature-card" style="padding:20px; background:var(--card); border:1px solid var(--border); border-radius:10px;"><h3>🛡️ Anti-Delete</h3><p>Recovers deleted text + media.</p></div>
+        <div class="feature-card" style="padding:20px; background:var(--card); border:1px solid var(--border); border-radius:10px;"><h3>🤖 AI Chat</h3><p>.ai — Ask Gemini</p></div>
+        <div class="feature-card" style="padding:20px; background:var(--card); border:1px solid var(--border); border-radius:10px;"><h3>👁️ View-Once</h3><p>Silently intercepts view-once media.</p></div>
+      </div>
+    </div>
+
+    <div id="page-support" style="display:none">
+      <h1 class="page-title">Support</h1>
+      <div class="session-card">
+        <div class="contact-buttons" style="display:flex; flex-direction:column; gap:10px;">
+          <a href="https://wa.me/254113628341" target="_blank" class="btn btn-primary" style="background:#25D366; text-decoration:none;">📱 WhatsApp Support</a>
+          <a href="https://t.me/hackerxke" target="_blank" class="btn btn-primary" style="background:#229ED9; text-decoration:none;">✈️ Telegram Support</a>
+        </div>
+      </div>
+    </div>
+
+    <div id="page-settings" style="display:none">
+      <h1 class="page-title">Settings</h1>
+      <div class="session-card">
+        <div class="info-row" style="display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--border);"><span class="label">Username</span><span class="value" id="settingUsername">-</span></div>
+        <div style="margin-top:24px"><button class="btn btn-danger" onclick="deleteSession()" style="background:var(--red); color:#fff; width:100%;">Delete Session & Unpair</button></div>
+      </div>
+    </div>
+  </main>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" style="position:fixed; bottom:20px; right:20px; background:var(--card); padding:15px; border-radius:10px; border:1px solid var(--border); display:none;"></div>
 
 <script>
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 3000);
+}
+
+document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    ['session','features','support','settings'].forEach(p => {
+      document.getElementById('page-' + p).style.display = p === btn.dataset.page ? '' : 'none';
+    });
+  });
+});
+
 async function checkAuth() {
   const r = await fetch('/api/me');
   if (r.ok) {
+    const d = await r.json();
     document.getElementById('authScreen').style.display = 'none';
-    document.getElementById('pairScreen').style.display = 'block';
+    document.getElementById('dashScreen').style.display = 'grid';
+    document.getElementById('settingUsername').textContent = d.user.username;
     loadSession();
   } else {
     document.getElementById('authScreen').style.display = 'block';
-    document.getElementById('pairScreen').style.display = 'none';
+    document.getElementById('dashScreen').style.display = 'none';
   }
 }
 
@@ -76,7 +107,6 @@ async function login() {
   const p = document.getElementById('password').value;
   const btn = document.getElementById('loginBtn');
   btn.disabled = true; btn.textContent = 'Logging in...';
-  
   try {
     const r = await fetch('/api/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -93,7 +123,6 @@ async function register() {
   const p = document.getElementById('password').value;
   const btn = document.getElementById('registerBtn');
   btn.disabled = true; btn.textContent = 'Creating...';
-  
   try {
     const r = await fetch('/api/register', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -115,55 +144,77 @@ function showError(msg) {
   el.textContent = msg; el.classList.add('show');
 }
 
-async function startPairing() {
-  const phone = document.getElementById('phone').value.trim();
-  const result = document.getElementById('result');
-  const btn = document.getElementById('connectBtn');
-  if (!phone || !/^\d{8,15}$/.test(phone)) {
-    result.innerHTML = '<div class="error-msg show">Digits only, with country code.</div>';
-    return;
-  }
-  btn.disabled = true; btn.textContent = 'Requesting code...';
-  result.innerHTML = '';
-  
+async function loadSession() {
+  try {
+    const r = await fetch('/api/session');
+    const d = await r.json();
+    const card = document.getElementById('sessionCard');
+    
+    if (d.status === 'NONE' || d.status === 'DISCONNECTED') {
+      card.innerHTML = `
+        <div class="status-badge status-disconnected">DISCONNECTED</div>
+        <h3 style="margin-bottom:16px">Create your bot session</h3>
+        <div class="form-group"><label>WhatsApp Number</label>
+        <input type="tel" id="phoneInput" placeholder="254712345678" inputmode="numeric"></div>
+        <button class="btn btn-primary" style="width:100%" onclick="createSession()">Generate Pairing Code</button>`;
+    } else if (d.status === 'AWAITING_PAIR') {
+      card.innerHTML = `
+        <div class="status-badge status-pending">AWAITING PAIR</div>
+        <h3 style="margin-bottom:8px">Enter this code in WhatsApp</h3>
+        <div class="pairing-code">${d.pairingCode || '------'}</div>
+        <div class="steps"><h4>Steps:</h4>
+          <div class="step"><div class="step-num">1</div>Open WhatsApp</div>
+          <div class="step"><div class="step-num">2</div>Settings → Linked Devices</div>
+          <div class="step"><div class="step-num">3</div>Link with Phone Number</div>
+          <div class="step"><div class="step-num">4</div>Enter code above</div>
+        </div>`;
+    } else if (d.status === 'CONNECTED') {
+      card.innerHTML = `
+        <div class="status-badge status-connected">CONNECTED</div>
+        <h3 style="margin-bottom:20px">Your bot is live ✅</h3>
+        <div class="info-row" style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border);"><span class="label">Status</span><span class="value" style="color:var(--green)">Online</span></div>
+        <div style="margin-top:24px;display:flex;gap:12px">
+          <button class="btn btn-ghost" onclick="loadSession()">Refresh</button>
+          <button class="btn btn-danger" onclick="deleteSession()">Unpair</button>
+        </div>
+        <div class="steps" style="margin-top:20px"><h4>Try in WhatsApp:</h4>
+          <div class="step">Send <b>.menu</b> to see commands</div>
+          <div class="step">Send <b>.ai Hello</b> to chat with AI</div>
+          <div class="step">Have a friend send a View-Once photo!</div>
+        </div>`;
+    } else {
+      card.innerHTML = `<div class="status-badge status-pending">${d.status}</div><p>Please wait...</p>`;
+    }
+  } catch {}
+}
+
+async function createSession() {
+  const phone = document.getElementById('phoneInput')?.value.trim();
+  if (!phone || !/^\d{8,15}$/.test(phone)) return toast('Enter digits only with country code');
+  document.getElementById('sessionCard').innerHTML = '<div class="status-badge status-pending">CONNECTING</div><p>Requesting code...</p>';
   try {
     const r = await fetch('/api/session/create', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone })
     });
     const d = await r.json();
-    if (d.code) {
-      result.innerHTML = `
-        <div class="status-badge status-pending">AWAITING PAIR</div>
-        <div class="pairing-code">${d.code}</div>
-        <div class="steps"><h4>Enter in WhatsApp:</h4>
-          <div class="step"><div class="step-num">1</div>Open WhatsApp</div>
-          <div class="step"><div class="step-num">2</div>Settings → Linked Devices</div>
-          <div class="step"><div class="step-num">3</div>Link with Phone Number</div>
-          <div class="step"><div class="step-num">4</div>Enter code above</div>
-        </div>`;
-    } else {
-      result.innerHTML = '<div class="error-msg show">' + (d.error || 'Failed') + '</div>';
-    }
-  } catch (e) {
-    result.innerHTML = '<div class="error-msg show">Network error</div>';
-  }
-  btn.disabled = false; btn.textContent = 'Generate Pairing Code';
+    if (d.error) toast(d.error);
+    loadSession();
+  } catch { toast('Network error'); }
 }
 
-async function loadSession() {
-  try {
-    const r = await fetch('/api/session');
-    const d = await r.json();
-    if (d.status === 'CONNECTED') {
-      document.getElementById('result').innerHTML = `<div class="status-badge status-connected">CONNECTED ✅</div><p>Bot is live. Send <b>.menu</b> in WhatsApp.</p>`;
-      document.getElementById('connectBtn').style.display = 'none';
-      document.getElementById('phone').style.display = 'none';
-    }
-  } catch {}
+async function deleteSession() {
+  if (!confirm('Delete session? You will need to re-pair.')) return;
+  await fetch('/api/session/delete', { method: 'POST' });
+  toast('Session deleted'); loadSession();
 }
 
 checkAuth();
+setInterval(() => {
+  if (document.getElementById('dashScreen').style.display === 'grid' && document.getElementById('page-session').style.display !== 'none') {
+    loadSession();
+  }
+}, 5000);
 </script>
 </body>
 </html>
