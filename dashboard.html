@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard — Project Atomic</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="dashboard">
+  <aside class="sidebar">
+    <div class="logo">⚡ Atomic</div>
+    <button class="nav-item active" data-page="session">🤖 My Bot</button>
+    <button class="nav-item" data-page="features">✨ Features</button>
+    <button class="nav-item" data-page="support">💬 Support</button>
+    <button class="nav-item" data-page="settings">⚙️ Settings</button>
+    <button class="nav-item" onclick="location.href='/'" style="margin-top:24px">🏠 Home</button>
+  </aside>
+  <main class="main-content">
+    <div id="page-session">
+      <h1 class="page-title">My Bot Session</h1>
+      <p class="page-sub">Pair your WhatsApp number to activate the bot.</p>
+      <div class="session-card" id="sessionCard"><div>Loading...</div></div>
+    </div>
+    <div id="page-features" style="display:none">
+      <h1 class="page-title">Features</h1>
+      <p class="page-sub">Everything your bot can do.</p>
+      <div class="features" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+        <div class="feature-card"><div class="icon">👁️</div><h3>Auto-View Status</h3><p>Auto views & saves statuses.</p></div>
+        <div class="feature-card"><div class="icon">📥</div><h3>Downloads</h3><p>.song .video .dl .ytmp3 .ytmp4 .sc</p></div>
+        <div class="feature-card"><div class="icon">👥</div><h3>Group Admin</h3><p>.tagall .kick .promote .warn .top</p></div>
+        <div class="feature-card"><div class="icon">🛡️</div><h3>Anti-Delete</h3><p>Recovers deleted text + media.</p></div>
+        <div class="feature-card"><div class="icon">🤖</div><h3>AI Chat</h3><p>.ai — Ask Gemini</p></div>
+        <div class="feature-card"><div class="icon">🎨</div><h3>Image Gen</h3><p>.imagine — AI images</p></div>
+      </div>
+    </div>
+    <div id="page-support" style="display:none">
+      <h1 class="page-title">Support</h1>
+      <p class="page-sub">Get in touch.</p>
+      <div class="session-card">
+        <div class="contact-buttons" style="flex-direction:column">
+          <a href="https://wa.me/254113628341" target="_blank" class="contact-btn whatsapp">
+            <div class="contact-info"><span class="contact-label">WhatsApp</span><span class="contact-value">+254 113 628 341</span></div>
+          </a>
+          <a href="https://t.me/hackerxke" target="_blank" class="contact-btn telegram">
+            <div class="contact-info"><span class="contact-label">Telegram</span><span class="contact-value">@hackerxke</span></div>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div id="page-settings" style="display:none">
+      <h1 class="page-title">Settings</h1>
+      <p class="page-sub">Manage your session.</p>
+      <div class="session-card">
+        <div class="info-row"><span class="label">Visitor ID</span><span class="value" id="visitorIdDisplay" style="font-size:12px">-</span></div>
+        <div style="margin-top:24px"><button class="btn btn-danger" onclick="deleteSession()">Delete Session & Unpair</button></div>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+function getVisitorId() {
+  let id = localStorage.getItem('atomic_visitor_id');
+  if (!id) {
+    id = 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem('atomic_visitor_id', id);
+  }
+  return id;
+}
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + type;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    ['session','features','support','settings'].forEach(p => {
+      document.getElementById('page-' + p).style.display = p === btn.dataset.page ? '' : 'none';
+    });
+  });
+});
+document.getElementById('visitorIdDisplay').textContent = getVisitorId();
+let lastStatus = null, lastPairingCode = null;
+async function loadSession() {
+  let d;
+  try {
+    const r = await fetch('/api/session?visitorId=' + encodeURIComponent(getVisitorId()));
+    d = await r.json();
+  } catch (e) { return; }
+  const inputFocused = document.activeElement && document.activeElement.id === 'phoneInput';
+  const changed = d.status !== lastStatus || d.pairingCode !== lastPairingCode;
+  if (!changed && inputFocused) return;
+  if (!changed && d.status !== 'AWAITING_PAIR') return;
+  lastStatus = d.status; lastPairingCode = d.pairingCode;
+  renderSession(d);
+}
+function renderSession(d) {
+  const card = document.getElementById('sessionCard');
+  if (d.status === 'NONE' || d.status === 'DISCONNECTED') {
+    if (document.getElementById('phoneInput')) return;
+    card.innerHTML = `
+      <div class="status-badge status-disconnected">DISCONNECTED</div>
+      <h3 style="margin-bottom:16px">Create your bot session</h3>
+      <div class="form-group"><label>WhatsApp Number</label>
+      <input type="tel" id="phoneInput" placeholder="254712345678" inputmode="numeric" autocomplete="off"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="createSession()">Generate Pairing Code</button>`;
+  } else if (d.status === 'AWAITING_PAIR') {
+    card.innerHTML = `
+      <div class="status-badge status-pending">AWAITING PAIR</div>
+      <h3 style="margin-bottom:8px">Enter this code in WhatsApp</h3>
+      <div class="pairing-code">${d.pairingCode || '------'}</div>
+      <div class="steps"><h4>Steps:</h4>
+        <div class="step"><div class="step-num">1</div>Open WhatsApp</div>
+        <div class="step"><div class="step-num">2</div>Settings → Linked Devices</div>
+        <div class="step"><div class="step-num">3</div>Link with Phone Number</div>
+        <div class="step"><div class="step-num">4</div>Enter code above</div>
+      </div>`;
+  } else if (d.status === 'CONNECTED') {
+    const since = d.connectedAt ? new Date(d.connectedAt).toLocaleString() : '-';
+    card.innerHTML = `
+      <div class="status-badge status-connected">CONNECTED</div>
+      <h3 style="margin-bottom:20px">Your bot is live ✅</h3>
+      <div class="info-row"><span class="label">Phone</span><span class="value">${d.phone || '-'}</span></div>
+      <div class="info-row"><span class="label">Since</span><span class="value">${since}</span></div>
+      <div style="margin-top:24px;display:flex;gap:12px">
+        <button class="btn btn-ghost" onclick="loadSession()">Refresh</button>
+        <button class="btn btn-danger" onclick="deleteSession()">Unpair</button>
+      </div>
+      <div class="steps" style="margin-top:20px"><h4>Try in WhatsApp:</h4>
+        <div class="step">Send <b>.menu</b></div>
+        <div class="step">Send <b>.ai Hello</b></div>
+        <div class="step">Send <b>.imagine a lion</b></div>
+      </div>`;
+  } else {
+    card.innerHTML = `<div class="status-badge status-pending">${d.status}</div><p>Please wait...</p>`;
+  }
+}
+async function createSession() {
+  const input = document.getElementById('phoneInput');
+  const phone = input ? input.value.trim() : '';
+  if (!phone || !/^\d{8,15}$/.test(phone)) return toast('Digits only with country code', 'error');
+  document.getElementById('sessionCard').innerHTML = '<div class="status-badge status-pending">CONNECTING</div><p style="color:var(--muted)">Requesting code...</p>';
+  lastStatus = null; lastPairingCode = null;
+  try {
+    const r = await fetch('/api/session/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, visitorId: getVisitorId() })
+    });
+    const d = await r.json();
+    if (d.error) toast(d.error, 'error');
+    lastStatus = null; await loadSession();
+  } catch (e) { toast('Network error', 'error'); lastStatus = null; loadSession(); }
+}
+async function deleteSession() {
+  if (!confirm('Delete session? You will re-pair.')) return;
+  await fetch('/api/session/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ visitorId: getVisitorId() })
+  });
+  toast('Session deleted'); lastStatus = null; loadSession();
+}
+loadSession(); setInterval(loadSession, 4000);
+</script>
+</body>
+</html>

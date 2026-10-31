@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HACKERXKESCHEME - Login</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="landing" id="authScreen">
+  <div class="nav">
+    <div class="logo">⚡ HACKERXKESCHEME</div>
+  </div>
+
+  <div class="hero">
+    <h1>Welcome Back.</h1>
+    <p>Log in to manage your WhatsApp bot.</p>
+  </div>
+
+  <div class="session-card" style="margin:0 auto 60px; max-width: 400px;">
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" id="username" placeholder="Enter username" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="Enter password" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" style="width:100%" id="loginBtn" onclick="login()">Login</button>
+    <button class="btn btn-ghost" style="width:100%; margin-top:10px;" id="registerBtn" onclick="register()">Create Account</button>
+    <div id="error" class="error-msg"></div>
+  </div>
+</div>
+
+<div class="landing" id="pairScreen" style="display:none;">
+  <div class="nav">
+    <div class="logo">⚡ HACKERXKESCHEME</div>
+    <div class="nav-actions">
+      <button class="btn btn-ghost" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="hero">
+    <h1>Connect WhatsApp</h1>
+    <p>Enter your number to link your bot.</p>
+  </div>
+
+  <div class="session-card" style="margin:0 auto 60px">
+    <div class="form-group">
+      <label>WhatsApp Number (digits only, with country code)</label>
+      <input type="tel" id="phone" placeholder="254712345678" inputmode="numeric" autocomplete="off">
+    </div>
+    <button class="btn btn-primary" style="width:100%" id="connectBtn" onclick="startPairing()">Generate Pairing Code</button>
+    <div id="result" style="margin-top:20px"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+async function checkAuth() {
+  const r = await fetch('/api/me');
+  if (r.ok) {
+    document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('pairScreen').style.display = 'block';
+    loadSession();
+  } else {
+    document.getElementById('authScreen').style.display = 'block';
+    document.getElementById('pairScreen').style.display = 'none';
+  }
+}
+
+async function login() {
+  const u = document.getElementById('username').value;
+  const p = document.getElementById('password').value;
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.textContent = 'Logging in...';
+  
+  try {
+    const r = await fetch('/api/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p })
+    });
+    const d = await r.json();
+    if (d.success) { checkAuth(); } else { showError(d.error); }
+  } catch { showError('Network error'); }
+  btn.disabled = false; btn.textContent = 'Login';
+}
+
+async function register() {
+  const u = document.getElementById('username').value;
+  const p = document.getElementById('password').value;
+  const btn = document.getElementById('registerBtn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+  
+  try {
+    const r = await fetch('/api/register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p })
+    });
+    const d = await r.json();
+    if (d.success) { checkAuth(); } else { showError(d.error); }
+  } catch { showError('Network error'); }
+  btn.disabled = false; btn.textContent = 'Create Account';
+}
+
+async function logout() {
+  await fetch('/api/logout', { method: 'POST' });
+  location.reload();
+}
+
+function showError(msg) {
+  const el = document.getElementById('error');
+  el.textContent = msg; el.classList.add('show');
+}
+
+async function startPairing() {
+  const phone = document.getElementById('phone').value.trim();
+  const result = document.getElementById('result');
+  const btn = document.getElementById('connectBtn');
+  if (!phone || !/^\d{8,15}$/.test(phone)) {
+    result.innerHTML = '<div class="error-msg show">Digits only, with country code.</div>';
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Requesting code...';
+  result.innerHTML = '';
+  
+  try {
+    const r = await fetch('/api/session/create', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone })
+    });
+    const d = await r.json();
+    if (d.code) {
+      result.innerHTML = `
+        <div class="status-badge status-pending">AWAITING PAIR</div>
+        <div class="pairing-code">${d.code}</div>
+        <div class="steps"><h4>Enter in WhatsApp:</h4>
+          <div class="step"><div class="step-num">1</div>Open WhatsApp</div>
+          <div class="step"><div class="step-num">2</div>Settings → Linked Devices</div>
+          <div class="step"><div class="step-num">3</div>Link with Phone Number</div>
+          <div class="step"><div class="step-num">4</div>Enter code above</div>
+        </div>`;
+    } else {
+      result.innerHTML = '<div class="error-msg show">' + (d.error || 'Failed') + '</div>';
+    }
+  } catch (e) {
+    result.innerHTML = '<div class="error-msg show">Network error</div>';
+  }
+  btn.disabled = false; btn.textContent = 'Generate Pairing Code';
+}
+
+async function loadSession() {
+  try {
+    const r = await fetch('/api/session');
+    const d = await r.json();
+    if (d.status === 'CONNECTED') {
+      document.getElementById('result').innerHTML = `<div class="status-badge status-connected">CONNECTED ✅</div><p>Bot is live. Send <b>.menu</b> in WhatsApp.</p>`;
+      document.getElementById('connectBtn').style.display = 'none';
+      document.getElementById('phone').style.display = 'none';
+    }
+  } catch {}
+}
+
+checkAuth();
+</script>
+</body>
+</html>
