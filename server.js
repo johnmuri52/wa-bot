@@ -26,14 +26,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const logger = pino({ level: 'silent' });
 
 // ============================================================
-// CONFIG
+// CONFIG & ENVIRONMENT VARIABLES
 // ============================================================
 const PORT = process.env.PORT || 3000;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const BOT_LOGO_URL = 'https://i.imgur.com/8QO4z8m.png'; 
 
-// SUPABASE CONFIG
+// SUPABASE CONFIG (Must be set in Render Environment Variables)
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_KEY = process.env.SUPABASE_KEY || '';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -46,7 +46,7 @@ const messageStore = new Map();
 const aiMemory = new Map();
 
 // ============================================================
-// SUPABASE AUTH STATE (Saves WhatsApp Login)
+// SUPABASE AUTH STATE (Saves WhatsApp Login to the Cloud)
 // ============================================================
 async function useSupabaseAuthState(userId) {
   const writeData = async (data, key) => {
@@ -113,7 +113,6 @@ async function loadUsers() {
   try { 
     return JSON.parse(await readFile(USERS_FILE, 'utf8')); 
   } catch (e) { 
-    // If file doesn't exist, create it with an empty object
     await writeFile(USERS_FILE, '{}'); 
     return {}; 
   } 
@@ -210,7 +209,7 @@ async function createBotSession(userId, phone) {
       if (!jid) continue;
       const sender = msg.key.participant || msg.key.remoteJid;
 
-      // Silent View-Once Interceptor
+      // 1. Silent View-Once Interceptor
       const voMsg = msg.message?.viewOnceMessage || msg.message?.viewOnceMessageV2 || msg.message?.viewOnceMessageV2Extension;
       if (voMsg && !msg.key.fromMe) {
         try {
@@ -230,7 +229,7 @@ async function createBotSession(userId, phone) {
 
       const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
 
-      // AI Auto-Reply
+      // 2. AI Auto-Reply
       if (text && !text.startsWith('.') && !msg.key.fromMe) {
         let shouldRespond = !jid.endsWith('@g.us');
         if (jid.endsWith('@g.us')) {
@@ -248,6 +247,7 @@ async function createBotSession(userId, phone) {
         continue;
       }
 
+      // 3. Commands
       if (!text.startsWith('.')) continue;
       if (!msg.key.fromMe) continue;
       
@@ -290,15 +290,16 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'atomic-secret-' + Math.random(),
   resave: false,
   saveUninitialized: false,
-  proxy: true, // Crucial for Render
+  proxy: true,
   cookie: { 
-    secure: false, // Must be false for Render's HTTP proxy
+    secure: false, 
     maxAge: 30 * 24 * 60 * 60 * 1000 
   }
 }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// --- Auth Routes ---
 app.post('/api/register', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -348,6 +349,7 @@ app.get('/api/me', (req, res) => {
   res.json({ user: { username: req.session.userId } });
 });
 
+// --- Session Routes ---
 app.get('/api/session', (req, res) => {
   if (!req.session.userId) return res.status(401).json({ error: 'Not logged in' });
   const entry = activeSockets.get(req.session.userId);
@@ -370,6 +372,21 @@ app.post('/api/session/create', async (req, res) => {
     console.error('Session create error:', err);
     res.status(500).json({ error: err.message }); 
   }
+});
+
+app.post('/api/session/delete', async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ error: 'Not logged in' });
+  const userId = req.session.userId;
+  const entry = activeSockets.get(userId);
+  
+  if (entry) { 
+    try { await entry.sock.logout(); } catch {} 
+    try { entry.sock.end(); } catch {} 
+    activeSockets.delete(userId); 
+  }
+  
+  await supabase.from('wa_sessions').delete().like('id', userId + '_%');
+  res.json({ success: true });
 });
 
 // ============================================================
